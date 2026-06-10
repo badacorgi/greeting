@@ -570,75 +570,69 @@
             }
         }
 
-        // AI 프롬프트 생성 및 API 연동 (Google Apps Script 경유 버전)
-        async function generateSpeechWithAI() {
-            
-            // ⚠️ [중요] 2단계에서 복사해 둔 내 구글 앱스 스크립트 '웹 앱 URL'을 여기에 넣으세요!
-            // 예시: "https://script.google.com/macros/s/AKfycb.../exec"
-            const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwwzkUxVyBvhjU6yci3hiWNvgEn66N0Ok6x8A4PwMwU_UBPYdCAMNbHnlrw9O3qO4cP9A/exec"; 
+// AI 프롬프트 생성 및 API 연동 (자동 재시도 기능 추가 버전)
+async function generateSpeechWithAI() {
+    
+    // ⚠️ 이곳에 기존에 쓰시던 Apps Script 웹 앱 URL을 그대로 넣으세요!
+    const GAS_WEB_APP_URL = "여기에_복사한_웹앱_URL을_넣으세요"; 
 
-            if (GAS_WEB_APP_URL === "여기에_복사한_웹앱_URL을_넣으세요" || !GAS_WEB_APP_URL) {
-                showToast("Apps Script 웹 앱 URL이 입력되지 않았습니다. 코드 내에 주소를 입력해주세요.", "error");
-                return;
+    if (GAS_WEB_APP_URL === "여기에_복사한_웹앱_URL을_넣으세요" || !GAS_WEB_APP_URL) {
+        showToast("Apps Script 웹 앱 URL이 입력되지 않았습니다. 코드 내에 주소를 입력해주세요.", "error");
+        return;
+    }
+
+    const sNameEl = document.getElementById('schoolName');
+    const pNameEl = document.getElementById('principalName');
+    const sTypeEl = document.getElementById('schoolType');
+    const sVisionEl = document.getElementById('schoolVision');
+    const toneEl = document.getElementById('tone');
+    const keywordsEl = document.getElementById('keywords');
+    const additionalEl = document.getElementById('additionalContent');
+    const lengthEl = document.getElementById('lengthPreset');
+    const quoteEl = document.getElementById('quoteOption');
+    const eventNameEl = document.getElementById('eventNameInput');
+
+    const schoolName = sNameEl ? sNameEl.value : "기관";
+    const principalName = pNameEl ? pNameEl.value : "기관장";
+    const schoolType = sTypeEl ? sTypeEl.value : "초등학교";
+    const schoolVision = sVisionEl ? sVisionEl.value : "";
+    const tone = toneEl ? toneEl.value : "부드럽고 깊은 울림을 주는 다정한 어조";
+    const keywords = keywordsEl ? keywordsEl.value : "";
+    const additionalContent = additionalEl ? additionalEl.value : "";
+    const lengthPreset = lengthEl ? lengthEl.value : "normal";
+    const quoteOption = quoteEl ? quoteEl.value : "none";
+    const eventName = eventNameEl ? eventNameEl.value.trim() : "기관 행사";
+
+    const audience = selectedAudiences.length > 0 ? selectedAudiences.join(', ') : "구성원";
+
+    let combinedAtmospherePrompt = "지혜롭고 기품 있는 일반적인 연설문 스타일";
+    if (selectedAtmospheres.length > 0) {
+        const selectedNames = [];
+        const selectedGuidelines = [];
+        selectedAtmospheres.forEach(id => {
+            const found = speechTemplates.find(t => t.id === id);
+            if (found) {
+                selectedNames.push(found.name);
+                selectedGuidelines.push(`- [${found.name}]: ${found.prompt}`);
             }
+        });
+        combinedAtmospherePrompt = `다음 분위기 요소들을 조화롭고 부드럽게 복합 가미하여 구성해 주십시오 (선택된 분위기: ${selectedNames.join(', ')}):\n${selectedGuidelines.join('\n')}`;
+    }
 
-            const sNameEl = document.getElementById('schoolName');
-            const pNameEl = document.getElementById('principalName');
-            const sTypeEl = document.getElementById('schoolType');
-            const sVisionEl = document.getElementById('schoolVision');
-            const toneEl = document.getElementById('tone');
-            const keywordsEl = document.getElementById('keywords');
-            const additionalEl = document.getElementById('additionalContent');
-            const lengthEl = document.getElementById('lengthPreset');
-            const quoteEl = document.getElementById('quoteOption');
-            const eventNameEl = document.getElementById('eventNameInput');
+    let lengthDesc = "공백 포함 약 800자 내외";
+    if (lengthPreset === 'short') lengthDesc = "공백 포함 약 400자 내외로 군더더기 없이 간결하고 핵심 위주로 정리";
+    if (lengthPreset === 'long') lengthDesc = "공백 포함 약 1200자 내외로 기품 있고 장엄하게 살을 붙인 형태";
 
-            const schoolName = sNameEl ? sNameEl.value : "기관";
-            const principalName = pNameEl ? pNameEl.value : "기관장";
-            const schoolType = sTypeEl ? sTypeEl.value : "초등학교";
-            const schoolVision = sVisionEl ? sVisionEl.value : "";
-            const tone = toneEl ? toneEl.value : "부드럽고 깊은 울림을 주는 다정한 어조";
-            const keywords = keywordsEl ? keywordsEl.value : "";
-            const additionalContent = additionalEl ? additionalEl.value : "";
-            const lengthPreset = lengthEl ? lengthEl.value : "normal";
-            const quoteOption = quoteEl ? quoteEl.value : "none";
-            const eventName = eventNameEl ? eventNameEl.value.trim() : "기관 행사";
+    let quoteDesc = "";
+    if (quoteOption === 'quote') quoteDesc = "연설 분위기와 어우러지는 명망 높은 학자, 문학가 혹은 위인의 감동적인 명언을 한 개 자연스럽게 녹여서 교육적 사유의 넓이를 확장해 주십시오.";
+    if (quoteOption === 'proverb') quoteDesc = "행사와 관련된 핵심 한자 고사성어나 사자성어를 한 개 인용하고, 현대적 관점의 쉬운 풀이와 가르침을 자연스레 연결하여 전달해 주십시오.";
 
-            // 다중 선택된 청중들을 쉼표로 결합하여 표현
-            const audience = selectedAudiences.length > 0 ? selectedAudiences.join(', ') : "구성원";
+    const loader = document.getElementById('aiLoader');
+    if (loader) loader.classList.remove('hidden');
 
-            // 분위기 복수 조합 추출 및 서술
-            let combinedAtmospherePrompt = "지혜롭고 기품 있는 일반적인 연설문 스타일";
-            if (selectedAtmospheres.length > 0) {
-                const selectedNames = [];
-                const selectedGuidelines = [];
-                selectedAtmospheres.forEach(id => {
-                    const found = speechTemplates.find(t => t.id === id);
-                    if (found) {
-                        selectedNames.push(found.name);
-                        selectedGuidelines.push(`- [${found.name}]: ${found.prompt}`);
-                    }
-                });
-                combinedAtmospherePrompt = `다음 분위기 요소들을 조화롭고 부드럽게 복합 가미하여 구성해 주십시오 (선택된 분위기: ${selectedNames.join(', ')}):\n${selectedGuidelines.join('\n')}`;
-            }
+    const systemInstruction = "당신은 예의 바르고, 지혜와 자애로움을 지닌 교육기관의 책임감 있는 최고의 리더(기관장, 교장, 원장 등)입니다. 전달받은 행사 환경과 교육 비전에 발맞춰 감동과 배움의 깊이가 있는 완벽한 격식의 연설 원고를 창조합니다. 문체는 정중하고 지적인 '하십시오체'를 사용하고, 흐름이 지루하지 않게 조율해야 합니다. 공적 교육 가치를 보호하기 위해, 특정 정당이나 정파, 이념을 지지하거나 비판하는 '정치적 편향성' 및 종교적 색채(기독교, 불교, 하나님, 은총, 기도, 성경 등 특정 종파 및 교리 관련 단어)는 완벽히 거세하고, 보편적이고 따뜻한 인성 및 철학적 표현으로 승화하여 작성해야 합니다.";
 
-            // 분량 정의
-            let lengthDesc = "공백 포함 약 800자 내외";
-            if (lengthPreset === 'short') lengthDesc = "공백 포함 약 400자 내외로 군더더기 없이 간결하고 핵심 위주로 정리";
-            if (lengthPreset === 'long') lengthDesc = "공백 포함 약 1200자 내외로 기품 있고 장엄하게 살을 붙인 형태";
-
-            // 인용구 설정
-            let quoteDesc = "";
-            if (quoteOption === 'quote') quoteDesc = "연설 분위기와 어우러지는 명망 높은 학자, 문학가 혹은 위인의 감동적인 명언을 한 개 자연스럽게 녹여서 교육적 사유의 넓이를 확장해 주십시오.";
-            if (quoteOption === 'proverb') quoteDesc = "행사와 관련된 핵심 한자 고사성어나 사자성어를 한 개 인용하고, 현대적 관점의 쉬운 풀이와 가르침을 자연스레 연결하여 전달해 주십시오.";
-
-            // UI 로딩 노출
-            const loader = document.getElementById('aiLoader');
-            if (loader) loader.classList.remove('hidden');
-
-            const systemInstruction = "당신은 예의 바르고, 지혜와 자애로움을 지닌 교육기관의 책임감 있는 최고의 리더(기관장, 교장, 원장 등)입니다. 전달받은 행사 환경과 교육 비전에 발맞춰 감동과 배움의 깊이가 있는 완벽한 격식의 연설 원고를 창조합니다. 문체는 정중하고 지적인 '하십시오체'를 사용하고, 흐름이 지루하지 않게 조율해야 합니다. 공적 교육 가치를 보호하기 위해, 특정 정당이나 정파, 이념을 지지하거나 비판하는 '정치적 편향성' 및 종교적 색채(기독교, 불교, 하나님, 은총, 기도, 성경 등 특정 종파 및 교리 관련 단어)는 완벽히 거세하고, 보편적이고 따뜻한 인성 및 철학적 표현으로 승화하여 작성해야 합니다.";
-
-            const userQuery = `기관 정보: ${schoolName} (${schoolType})
+    const userQuery = `기관 정보: ${schoolName} (${schoolType})
 기관 리더 이름: ${principalName}
 기관 교육 목표 및 핵심 비전: ${schoolVision}
 진행할 행사 성격: ${eventName}
@@ -659,74 +653,77 @@
 3. 어떠한 정치적 당파성, 이념적 편향, 혹은 종교적 은유도 완벽히 필터링하여 순수한 공교육의 보편적 가치만 살려야 합니다.
 4. 설명이나 해설 문장은 모두 지우고, 단상 위에서 즉각 낭독할 '축사 본문 전문'만을 완벽하게 전송하십시오.`;
 
-            // 깃허브에서 앱스 스크립트로 보낼 데이터 꾸러미
-            const payload = {
-                systemInstruction: {
-                    parts: [{ text: systemInstruction }]
-                },
-                contents: [{
-                    role: "user",
-                    parts: [{ text: userQuery }]
-                }],
-                generationConfig: {
-                    temperature: 0.7
-                }
-            };
+    const payload = {
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ role: "user", parts: [{ text: userQuery }] }],
+        generationConfig: { temperature: 0.7 }
+    };
 
-            try {
-                // 제미나이가 아닌 '내 구글 앱스 스크립트'로 우회 요청을 보냅니다.
-                const response = await fetch(GAS_WEB_APP_URL, {
-                    method: 'POST',
-                    // 중요: 깃허브 페이지에서 보낼 때 CORS 에러를 막기 위해 text/plain을 사용합니다.
-                    headers: {
-                        'Content-Type': 'text/plain;charset=utf-8'
-                    },
-                    body: JSON.stringify(payload)
-                });
+    // 🚀 자동 재시도 로직 시작 (최대 3번 시도)
+    let retries = 3;
+    let delay = 2000; // 실패 시 2초 대기
+    let success = false;
+    let generatedSpeech = "";
 
-                if (!response.ok) {
-                    throw new Error(`통신 에러: 상태 코드 ${response.status}`);
-                }
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            });
 
-                const result = await response.json();
+            if (!response.ok) {
+                throw new Error(`통신 에러: 상태 코드 ${response.status}`);
+            }
 
-                // 앱스 스크립트에서 에러를 잡아 반환한 경우 처리
-                if (result.error) {
-                    throw new Error(result.error.message || result.error);
-                }
+            const result = await response.json();
 
-                // Gemini 응답 구조에서 텍스트 추출
-                let generatedSpeech = "";
-                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts) {
-                    generatedSpeech = result.candidates[0].content.parts[0].text;
-                }
+            // 앱스 스크립트에서 에러를 반환한 경우 (Internal Error, High Demand 등)
+            if (result.error) {
+                const errMsg = result.error.message || result.error;
+                throw new Error(errMsg);
+            }
 
-                if (generatedSpeech && generatedSpeech.trim()) {
-                    const speechTextarea = document.getElementById('speechTextarea');
-                    const editorTitle = document.getElementById('editorTitle');
+            // 성공적으로 텍스트를 추출
+            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts) {
+                generatedSpeech = result.candidates[0].content.parts[0].text;
+                success = true;
+                break; // 성공했으므로 반복문 탈출!
+            } else {
+                throw new Error("API 응답에서 텍스트를 추출할 수 없습니다.");
+            }
 
-                    if (speechTextarea) speechTextarea.value = generatedSpeech.trim();
-                    if (editorTitle) editorTitle.innerText = `${schoolName} ${eventName} 인사말 (AI 추천안)`;
-
-                    updateCharCount();
-                    
-                    // 히스토리에 자동 추가 및 보관
-                    saveToHistoryList(schoolName, eventName, generatedSpeech.trim());
-                    showToast("선택된 분위기가 조화롭게 녹아든 맞춤 인사말이 완성되었습니다!", "success");
-                } else {
-                    throw new Error("API 응답에서 텍스트를 추출할 수 없습니다.");
-                }
-
-            } catch (err) {
-                console.error("전체 에러 내역:", err);
-                // 화면의 토스트 팝업으로 상세 에러 메시지 직접 표출
-                showToast(`에러: ${err.message}`, "error");
-            } finally {
-                // 성공 여부와 관계없이 로딩 오버레이 숨김
-                if (loader) loader.classList.add('hidden');
+        } catch (err) {
+            console.warn(`${i + 1}차 시도 실패:`, err.message);
+            // 마지막 시도까지 실패하면 에러를 최종으로 던짐
+            if (i === retries - 1) {
+                showToast(`구글 서버 과부하: ${err.message}`, "error");
+            } else {
+                // 실패 시 토스트 알림으로 사용자에게 상황을 알리고 잠시 대기
+                showToast(`구글 서버 지연 감지. ${i + 1}번째 재시도 중입니다...`, "error");
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay += 1000; // 다음 재시도 때는 1초 더 길게 대기
             }
         }
+    }
 
+    // 모든 시도 종료 후 성공 처리
+    if (success && generatedSpeech.trim()) {
+        const speechTextarea = document.getElementById('speechTextarea');
+        const editorTitle = document.getElementById('editorTitle');
+
+        if (speechTextarea) speechTextarea.value = generatedSpeech.trim();
+        if (editorTitle) editorTitle.innerText = `${schoolName} ${eventName} 인사말 (AI 추천안)`;
+
+        updateCharCount();
+        saveToHistoryList(schoolName, eventName, generatedSpeech.trim());
+        showToast("선택된 분위기가 조화롭게 녹아든 맞춤 인사말이 완성되었습니다!", "success");
+    }
+
+    // 로딩 숨김 처리
+    if (loader) loader.classList.add('hidden');
+}
         // 샘플 초안 주입
         function loadSampleText() {
             const sNameEl = document.getElementById('schoolName');
